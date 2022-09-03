@@ -56,6 +56,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+
 /* Scheduler includes. */
 #include "FreeRTOS.h"
 #include "task.h"
@@ -64,7 +65,7 @@
 /* Peripheral includes. */
 #include "serial.h"
 #include "GPIO.h"
-
+#include "queue.h"
 
 /*-----------------------------------------------------------*/
 
@@ -73,6 +74,20 @@
 
 /* Constants for the ComTest demo application tasks. */
 #define mainCOM_TEST_BAUD_RATE	( ( unsigned long ) 115200 )
+	
+
+
+
+typedef struct
+{
+	 uint16_t msg_Len;
+	 signed char *msg;
+}Queue_message;
+
+
+QueueHandle_t xQueue;  // xQueue used to store the messages sended by event tasks to Uart Task
+
+
 
 TaskHandle_t Button1_Handle=NULL;
 TaskHandle_t Button2_Handle=NULL;
@@ -87,45 +102,122 @@ static void prvSetupHardware( void );
 /*-----------------------------------------------------------*/
 void Button1_Task_Code(void *pvParameters)
 {
+	Queue_message Send_string;
+	BaseType_t xStatus;
+	static uint8_t High_Flag=0;
+	static uint8_t Low_Flag=0;
+
 	for(;;)
-	{
-			vTaskDelay(50); 
+	{  
+		if(GPIO_read(PORT_1,PIN0)==PIN_IS_HIGH &&High_Flag==0)     // If button 1 Pressed Print rising Edge only one time
+		{
+			signed char Rising_Edge_msg[]="Button 1 Rising Edge\n";
+			Send_string.msg=Rising_Edge_msg;
+			Send_string.msg_Len=22;
+			xStatus = xQueueSendToBack( xQueue,&Send_string, 0 );   //Push the message in the end of the Queue
+		  High_Flag=1;
+			Low_Flag=0;
+		}
+		else if(GPIO_read(PORT_1,PIN0)==PIN_IS_LOW &&Low_Flag==0)  // Else if button 2 is released Print falling Edge only one time
+		{
+			signed char Falling_Edge_msg[] ="Button 1 Falling Edge\n";
+			Send_string.msg=Falling_Edge_msg;
+			Send_string.msg_Len=23;
+			xStatus = xQueueSendToBack( xQueue,&Send_string, 0 );    //Push the message in the end of the Queue
+		  Low_Flag=1;
+			High_Flag=0;
+		}
+  	
+		GPIO_write(PORT_0,PIN0,PIN_IS_LOW);													//Toggling PIN0 for logic anaylizer
+		vTaskDelay(50); 																						//Button1 Period 50
+		GPIO_write(PORT_0,PIN0,PIN_IS_HIGH);
 	}
 }
+
+
 void Button2_Task_Code(void *pvParameters)
 {
+	
+	Queue_message Send_string;
+	BaseType_t xStatus;
+	static uint8_t High_Flag=0;
+	static uint8_t Low_Flag=0;
+	
 	for(;;)
-	{
-			vTaskDelay(50); 
+	{ 
+		if(GPIO_read(PORT_1,PIN1)==PIN_IS_HIGH &&High_Flag==0)       // If Button 2 Pressed Print rising Edge only one time
+		{
+			signed char Rising_Edge_msg[]="Button 2 Rising Edge\n";
+			Send_string.msg=Rising_Edge_msg;
+			Send_string.msg_Len=22;
+			xStatus = xQueueSendToBack( xQueue,&Send_string, 0 );			//Push the message in the end of the Queue
+		  High_Flag=1;
+			Low_Flag=0;
+		}
+		else if(GPIO_read(PORT_1,PIN1)==PIN_IS_LOW &&Low_Flag==0)  // Else if button 2 is released Print falling Edge only one time
+		{
+			signed char Falling_Edge_msg[] ="Button 2 Falling Edge\n";
+			Send_string.msg=Falling_Edge_msg;
+			Send_string.msg_Len=23;
+			xStatus = xQueueSendToBack( xQueue,&Send_string, 0 );	  //Push the message in the end of the Queue
+		  Low_Flag=1;
+			High_Flag=0;
+		}
+  	
+		GPIO_write(PORT_0,PIN1,PIN_IS_LOW); 											//Toggling PIN1 for logic anaylizer
+		vTaskDelay(50); 																					//Button2 Period 50
+		GPIO_write(PORT_0,PIN1,PIN_IS_HIGH);
 	}
 } 
 void Transmitter_Task_Code(void *pvParameters)
 {
 	for(;;)
-	{
-			vTaskDelay(100); 	   
+	{ 
+		GPIO_write(PORT_0,PIN2,PIN_IS_LOW);
+		for(int i=0;i<1000;i++);
+		vTaskDelay(100); 
+		GPIO_write(PORT_0,PIN2,PIN_IS_HIGH);
 	}
 }
 
 void Uart_Task_Code(void *pvParameters)
 {
+	Queue_message Receive_string;
+	BaseType_t xStatus;
 	for(;;)
-	{
-			vTaskDelay(20); 	   
+	{ 
+		
+		 xStatus = xQueueReceive( xQueue, &Receive_string, 0 );
+		 if( xStatus == pdPASS )
+		 {
+			 /* Data was successfully received from the queue, print out the received message. */
+				vSerialPutString(Receive_string.msg,Receive_string.msg_Len);
+		 }
+		 else
+		 {
+				/* Data was not received from the queue */
+				//vSerialPutString( "Queue is Empty\r\n",18);
+			  
+		 }
+
+		GPIO_write(PORT_0,PIN3,PIN_IS_LOW);
+		for(int i=0;i<1000;i++);
+		vTaskDelay(20); 
+		GPIO_write(PORT_0,PIN3,PIN_IS_HIGH);
 	}
 }
 
 void vApplicationTickHook(void)
  {
-		GPIO_write(PORT_0,PIN1,PIN_IS_HIGH);
-		GPIO_write(PORT_0,PIN1,PIN_IS_LOW);
+		GPIO_write(PORT_0,PIN4,PIN_IS_HIGH);
+		GPIO_write(PORT_0,PIN4,PIN_IS_LOW);
  }
 
  
  void vApplicationIdleHook(void)
  {
-	 GPIO_write(PORT_0,PIN2,PIN_IS_HIGH);
-	 GPIO_write(PORT_0,PIN2,PIN_IS_LOW);
+	 GPIO_write(PORT_0,PIN5,PIN_IS_HIGH);
+	 GPIO_write(PORT_0,PIN5,PIN_IS_LOW);
  }
  
 /*
@@ -134,67 +226,81 @@ void vApplicationTickHook(void)
  */
 int main( void )
 {
+	
 	/* Setup the hardware for use with the Keil demo board. */
 	prvSetupHardware();
-
 	
-  /*Tasks here*/
+  uint8_t uxQueueLength=3;
+	xQueue=xQueueCreate(uxQueueLength,sizeof(Queue_message));  // Queue will carry which task is sending the message and the address of the message
 	
-	 /******************** Button 1 Monitior Task *****************/
-	 xTaskPeriodicCreate(  Button1_Task_Code,
-												"Button_1_Monitor",
-												100,
-												( void * ) 1,
-												1,
-												&Button1_Handle,
-												50
-											);
-												
-  /******************** Button 2 Monitior Task *****************/												
-	 xTaskPeriodicCreate(  Button2_Task_Code,
-												 "Button_2_Monitor",
-												 100,
-												 ( void * ) 1,
-												 1,
-												 &Button2_Handle,
-												 50
-												);
-	
-  /******************** Periodic_Transmitter *****************/														
-	 xTaskPeriodicCreate(  Transmitter_Task_Code,
-											   "Periodic_Transmitter",
-												 100,
-												 ( void * ) 1,
-												 1,
-												 &Transmitter_Handle,
-												 100
-											);
-	
-	/******************** Uart_Receiver *****************/												 
-	 xTaskPeriodicCreate(  Uart_Task_Code,
-												 "Uart_Receiver",
-												 100,
-												 ( void * ) 1,
-												 1,
-												 &Uart_Handle,
-												 20
-											);
+	if(xQueue!=NULL)    
+	{
+					/*Tasks here*/
 				
- 
-												 
-												 
-	/* Now all the tasks have been started - start the scheduler.
+			 /******************** Button 1 Monitior Task *****************/
+			 xTaskPeriodicCreate(  Button1_Task_Code,
+														"Button_1_Monitor",
+														100,
+														( void * ) 1,
+														1,
+														&Button1_Handle,
+														50
+													);
+														
+														
+			/******************** Button 2 Monitior Task *****************/												
+			 xTaskPeriodicCreate(  Button2_Task_Code,
+														 "Button_2_Monitor",
+														 100,
+														 ( void * ) 1,
+														 1,
+														 &Button2_Handle,
+														 50
+														);
+			
+														 
+			/******************** Periodic_Transmitter *****************/														
+			 xTaskPeriodicCreate(  Transmitter_Task_Code,
+														 "Periodic_Transmitter",
+														 100,
+														 ( void * ) 1,
+														 1,
+														 &Transmitter_Handle,
+														 100
+													);
+			
+														 
+			/******************** Uart_Receiver *****************/												 
+			 xTaskPeriodicCreate(  Uart_Task_Code,
+														 "Uart_Receiver",
+														 100,
+														 ( void * ) 1,
+														 1,
+														 &Uart_Handle,
+														 20
+													);
+						
+		 
+														 
+														 
+			/* Now all the tasks have been started - start the scheduler.
 
-	NOTE : Tasks run in system mode and the scheduler runs in Supervisor mode.
-	The processor MUST be in supervisor mode when vTaskStartScheduler is 
-	called.  The demo applications included in the FreeRTOS.org download switch
-	to supervisor mode prior to main being called.  If you are not using one of
-	these demo application projects then ensure Supervisor mode is used here. */
-	vTaskStartScheduler();
+			NOTE : Tasks run in system mode and the scheduler runs in Supervisor mode.
+			The processor MUST be in supervisor mode when vTaskStartScheduler is 
+			called.  The demo applications included in the FreeRTOS.org download switch
+			to supervisor mode prior to main being called.  If you are not using one of
+			these demo application projects then ensure Supervisor mode is used here. */
+			vTaskStartScheduler();
 
+	}
+	else
+	{
+	   /* The queue could not be created. */
+	}
+	
 	/* Should never reach here!  If you do then there was not enough heap
-	available for the idle task to be created. */
-	for( ;; );
+			available for the idle task to be created. */
+	 for( ;; );
 }
 /*-----------------------------------------------------------*/
 
