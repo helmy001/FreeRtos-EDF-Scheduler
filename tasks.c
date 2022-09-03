@@ -241,7 +241,8 @@
 		/*-----------------------------------------------------------*/
 #else
 		#define prvAddTaskToReadyList( pxTCB )        										      \
-		vListInsert( &(xReadyTasksListEDF), &( ( pxTCB )->xStateListItem ) )     
+		vListInsert( &(xReadyTasksListEDF), &( ( pxTCB )->xStateListItem ) ) ;    \
+		traceMOVED_TASK_TO_READY_STATE( pxTCB ); 
 #endif
 
 /*
@@ -1666,7 +1667,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
         return uxReturn;
     }
 
-#endif /* INCLUDE_uxTaskPriorityGet */
+#endif /* INCLUDE_uxTaskPriorityGet */portTASK_FUNCTION
 /*-----------------------------------------------------------*/
 
 #if ( INCLUDE_vTaskPrioritySet == 1 )
@@ -2957,7 +2958,14 @@ BaseType_t xTaskIncrementTick( void )
 
                     /* Place the unblocked task into the appropriate ready
                      * list. */
-                    prvAddTaskToReadyList( pxTCB );
+										//EDF Change Num ->8
+										#if(configUSE_EDF_SCHEDULER==0)
+												prvAddTaskToReadyList( pxTCB );
+										#else  																			/* Update the Unblocked Task Deadline before inserting it in the EdfReadyList */	
+												listSET_LIST_ITEM_VALUE(&( pxTCB->xStateListItem ),pxTCB->xTaskPeriod+xTaskGetTickCount());
+												prvAddTaskToReadyList(pxTCB);
+										    xSwitchRequired = pdTRUE;
+										#endif
 
                     /* A task being unblocked cannot cause an immediate
                      * context switch if preemption is turned off. */
@@ -3597,6 +3605,15 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters )
 
     for( ; ; )
     {
+			
+				//EDF Change Num ->9
+				#if( configUSE_EDF_SCHEDULER == 1)
+				{
+					//Update the deadline of the idle task to keep it the Last Task
+					listSET_LIST_ITEM_VALUE( &( ( pxCurrentTCB )->xStateListItem ), ( pxCurrentTCB )->xTaskPeriod + xTaskGetTickCount() );
+				}
+				#endif
+			
         /* See if any tasks have deleted themselves - if so then the idle task
          * is responsible for freeing the deleted task's TCB and stack. */
         prvCheckTasksWaitingTermination();
@@ -3809,18 +3826,19 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters )
 
 static void prvInitialiseTaskLists( void )
 {
-	//EDF Change Num ->4
-	#if(configUSE_EDF_SCHEDULER==0)
+
     UBaseType_t uxPriority;
 
     for( uxPriority = ( UBaseType_t ) 0U; uxPriority < ( UBaseType_t ) configMAX_PRIORITIES; uxPriority++ )
     {
         vListInitialise( &( pxReadyTasksLists[ uxPriority ] ) );
     }
-	#else
-		vListInitialise( &xReadyTasksListEDF );
-	#endif
 		
+		//EDF Change Num ->4	
+		#if(configUSE_EDF_SCHEDULER==1)
+			vListInitialise( &xReadyTasksListEDF );
+		#endif
+			
     vListInitialise( &xDelayedTaskList1 );
     vListInitialise( &xDelayedTaskList2 );
     vListInitialise( &xPendingReadyList );
