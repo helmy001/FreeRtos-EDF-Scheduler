@@ -93,6 +93,10 @@ TaskHandle_t Button1_Handle=NULL;
 TaskHandle_t Button2_Handle=NULL;
 TaskHandle_t Transmitter_Handle=NULL;
 TaskHandle_t Uart_Handle=NULL;
+TaskHandle_t Load1_Handle=NULL;
+TaskHandle_t Load2_Handle=NULL;
+
+
 /*
  * Configure the processor for use with the Keil demo board.  This is very
  * minimal as most of the setup is managed by the settings in the project
@@ -100,8 +104,12 @@ TaskHandle_t Uart_Handle=NULL;
  */
 static void prvSetupHardware( void );
 /*-----------------------------------------------------------*/
+
 void Button1_Task_Code(void *pvParameters)
 {
+	TickType_t xLastWakeTime=xTaskGetTickCount();
+  const TickType_t xFrequency = 50;
+	
 	Queue_message Send_string;
 	BaseType_t xStatus;
 	static uint8_t High_Flag=0;
@@ -129,7 +137,7 @@ void Button1_Task_Code(void *pvParameters)
 		}
   	
 		GPIO_write(PORT_0,PIN0,PIN_IS_LOW);													//Toggling PIN0 for logic anaylizer
-		vTaskDelay(50); 																						//Button1 Period 50
+		vTaskDelayUntil( &xLastWakeTime, xFrequency ); 							//Button1 Period 50
 		GPIO_write(PORT_0,PIN0,PIN_IS_HIGH);
 	}
 }
@@ -137,6 +145,8 @@ void Button1_Task_Code(void *pvParameters)
 
 void Button2_Task_Code(void *pvParameters)
 {
+	TickType_t xLastWakeTime=xTaskGetTickCount();
+  const TickType_t xFrequency = 50;
 	
 	Queue_message Send_string;
 	BaseType_t xStatus;
@@ -165,23 +175,36 @@ void Button2_Task_Code(void *pvParameters)
 		}
   	
 		GPIO_write(PORT_0,PIN1,PIN_IS_LOW); 											//Toggling PIN1 for logic anaylizer
-		vTaskDelay(50); 																					//Button2 Period 50
+		vTaskDelayUntil( &xLastWakeTime, xFrequency );						//Button2 Period 50
 		GPIO_write(PORT_0,PIN1,PIN_IS_HIGH);
 	}
 } 
 void Transmitter_Task_Code(void *pvParameters)
 {
+	TickType_t xLastWakeTime=xTaskGetTickCount();
+  const TickType_t xFrequency = 100;
+	
+	Queue_message Send_string;
+	BaseType_t xStatus;
 	for(;;)
 	{ 
+		
+		signed char Rising_Edge_msg[]="Periodic Transmitter Message\n";
+		Send_string.msg=Rising_Edge_msg;
+		Send_string.msg_Len=30;
+		xStatus = xQueueSendToBack( xQueue,&Send_string, 0 );			//Push the message in the end of the Queue
+		
 		GPIO_write(PORT_0,PIN2,PIN_IS_LOW);
-		for(int i=0;i<1000;i++);
-		vTaskDelay(100); 
+		vTaskDelayUntil( &xLastWakeTime, xFrequency );     				//Period 100
 		GPIO_write(PORT_0,PIN2,PIN_IS_HIGH);
 	}
 }
 
 void Uart_Task_Code(void *pvParameters)
 {
+	TickType_t xLastWakeTime=xTaskGetTickCount();
+  const TickType_t xFrequency = 20;
+	
 	Queue_message Receive_string;
 	BaseType_t xStatus;
 	for(;;)
@@ -190,21 +213,44 @@ void Uart_Task_Code(void *pvParameters)
 		 xStatus = xQueueReceive( xQueue, &Receive_string, 0 );
 		 if( xStatus == pdPASS )
 		 {
-			 /* Data was successfully received from the queue, print out the received message. */
+			 // Data was successfully received from the queue, print out the received message
 				vSerialPutString(Receive_string.msg,Receive_string.msg_Len);
 		 }
 		 else
 		 {
-				/* Data was not received from the queue */
+				// Data was not received from the queue 
 				//vSerialPutString( "Queue is Empty\r\n",18);
 			  
 		 }
 
 		GPIO_write(PORT_0,PIN3,PIN_IS_LOW);
-		for(int i=0;i<1000;i++);
-		vTaskDelay(20); 
+		vTaskDelayUntil( &xLastWakeTime, xFrequency );         //Period 20
 		GPIO_write(PORT_0,PIN3,PIN_IS_HIGH);
 	}
+}
+
+void Load1_Task_Code(void *pvParameters)
+{
+	TickType_t xLastWakeTime=xTaskGetTickCount();
+  const TickType_t xFrequency = 10;
+		for(;;)
+		{
+			for(int i=0;i<37220;i++);
+			GPIO_write(PORT_0,PIN6,PIN_IS_LOW);
+		  vTaskDelayUntil( &xLastWakeTime, xFrequency );
+			GPIO_write(PORT_0,PIN6,PIN_IS_HIGH);
+		}
+}
+void Load2_Task_Code(void *pvParameters){
+	TickType_t xLastWakeTime=xTaskGetTickCount();
+  const TickType_t xFrequency = 100;
+		for(;;)
+		{
+			for(int i=0;i<93050;i++);
+			GPIO_write(PORT_0,PIN7,PIN_IS_LOW);
+		  vTaskDelayUntil( &xLastWakeTime, xFrequency );
+			GPIO_write(PORT_0,PIN7,PIN_IS_HIGH);
+		}
 }
 
 void vApplicationTickHook(void)
@@ -236,7 +282,7 @@ int main( void )
 	if(xQueue!=NULL)    
 	{
 					/*Tasks here*/
-				
+			 
 			 /******************** Button 1 Monitior Task *****************/
 			 xTaskPeriodicCreate(  Button1_Task_Code,
 														"Button_1_Monitor",
@@ -279,7 +325,26 @@ int main( void )
 														 &Uart_Handle,
 														 20
 													);
-						
+														 
+			/******************** Load_1_Simulation *****************/												 
+			 xTaskPeriodicCreate(  Load1_Task_Code,
+														 "Load_1_Simulation",
+														 100,
+														 ( void * ) 1,
+														 1,
+														 &Load1_Handle,
+														 10
+													);
+														 
+			/******************** Load_2_Simulation *****************/												 
+			 xTaskPeriodicCreate(  Load2_Task_Code,
+														 "Load_2_Simulation",
+														 100,
+														 ( void * ) 1,
+														 1,
+														 &Load2_Handle,
+														 100
+													);						
 		 
 														 
 														 
