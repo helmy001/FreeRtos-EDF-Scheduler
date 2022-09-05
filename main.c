@@ -119,18 +119,18 @@ void Button1_Task_Code(void *pvParameters)
 	{  
 		if(GPIO_read(PORT_1,PIN0)==PIN_IS_HIGH &&High_Flag==0)     // If button 1 Pressed Print rising Edge only one time
 		{
-			signed char Rising_Edge_msg[]="Button 1 Rising Edge\n";
+			signed char Rising_Edge_msg[]="#Button 1 Rising Edge\n";
 			Send_string.msg=Rising_Edge_msg;
-			Send_string.msg_Len=22;
+			Send_string.msg_Len=23;
 			xStatus = xQueueSendToBack( xQueue,&Send_string, 0 );   //Push the message in the end of the Queue
 		  High_Flag=1;
 			Low_Flag=0;
 		}
 		else if(GPIO_read(PORT_1,PIN0)==PIN_IS_LOW &&Low_Flag==0)  // Else if button 2 is released Print falling Edge only one time
 		{
-			signed char Falling_Edge_msg[] ="Button 1 Falling Edge\n";
+			signed char Falling_Edge_msg[] ="#Button 1 Falling Edge\n";
 			Send_string.msg=Falling_Edge_msg;
-			Send_string.msg_Len=23;
+			Send_string.msg_Len=24;
 			xStatus = xQueueSendToBack( xQueue,&Send_string, 0 );    //Push the message in the end of the Queue
 		  Low_Flag=1;
 			High_Flag=0;
@@ -157,18 +157,18 @@ void Button2_Task_Code(void *pvParameters)
 	{ 
 		if(GPIO_read(PORT_1,PIN1)==PIN_IS_HIGH &&High_Flag==0)       // If Button 2 Pressed Print rising Edge only one time
 		{
-			signed char Rising_Edge_msg[]="Button 2 Rising Edge\n";
+			signed char Rising_Edge_msg[]="#Button 2 Rising Edge\n";
 			Send_string.msg=Rising_Edge_msg;
-			Send_string.msg_Len=22;
+			Send_string.msg_Len=23;
 			xStatus = xQueueSendToBack( xQueue,&Send_string, 0 );			//Push the message in the end of the Queue
 		  High_Flag=1;
 			Low_Flag=0;
 		}
 		else if(GPIO_read(PORT_1,PIN1)==PIN_IS_LOW &&Low_Flag==0)  // Else if button 2 is released Print falling Edge only one time
 		{
-			signed char Falling_Edge_msg[] ="Button 2 Falling Edge\n";
+			signed char Falling_Edge_msg[] ="#Button 2 Falling Edge\n";
 			Send_string.msg=Falling_Edge_msg;
-			Send_string.msg_Len=23;
+			Send_string.msg_Len=24;
 			xStatus = xQueueSendToBack( xQueue,&Send_string, 0 );	  //Push the message in the end of the Queue
 		  Low_Flag=1;
 			High_Flag=0;
@@ -179,6 +179,7 @@ void Button2_Task_Code(void *pvParameters)
 		GPIO_write(PORT_0,PIN1,PIN_IS_HIGH);
 	}
 } 
+
 void Transmitter_Task_Code(void *pvParameters)
 {
 	TickType_t xLastWakeTime=xTaskGetTickCount();
@@ -200,6 +201,7 @@ void Transmitter_Task_Code(void *pvParameters)
 	}
 }
 
+
 void Uart_Task_Code(void *pvParameters)
 {
 	TickType_t xLastWakeTime=xTaskGetTickCount();
@@ -213,7 +215,7 @@ void Uart_Task_Code(void *pvParameters)
 		 xStatus = xQueueReceive( xQueue, &Receive_string, 0 );
 		 if( xStatus == pdPASS )
 		 {
-			 // Data was successfully received from the queue, print out the received message
+			 // Data was successfully received from the queue, print out the received message on Uart 2
 				vSerialPutString(Receive_string.msg,Receive_string.msg_Len);
 		 }
 		 else
@@ -224,7 +226,7 @@ void Uart_Task_Code(void *pvParameters)
 		 }
 
 		GPIO_write(PORT_0,PIN3,PIN_IS_LOW);
-		vTaskDelayUntil( &xLastWakeTime, xFrequency );         //Period 20
+		vTaskDelayUntil( &xLastWakeTime, xFrequency );         //Period 20ms
 		GPIO_write(PORT_0,PIN3,PIN_IS_HIGH);
 	}
 }
@@ -235,7 +237,7 @@ void Load1_Task_Code(void *pvParameters)
   const TickType_t xFrequency = 10;
 		for(;;)
 		{
-			for(int i=0;i<37220;i++);
+			for(int i=0;i<37220;i++);                 //for 5ms delay
 			GPIO_write(PORT_0,PIN6,PIN_IS_LOW);
 		  vTaskDelayUntil( &xLastWakeTime, xFrequency );
 			GPIO_write(PORT_0,PIN6,PIN_IS_HIGH);
@@ -246,7 +248,7 @@ void Load2_Task_Code(void *pvParameters){
   const TickType_t xFrequency = 100;
 		for(;;)
 		{
-			for(int i=0;i<93050;i++);
+			for(int i=0;i<89444;i++);                 //for 12ms delay
 			GPIO_write(PORT_0,PIN7,PIN_IS_LOW);
 		  vTaskDelayUntil( &xLastWakeTime, xFrequency );
 			GPIO_write(PORT_0,PIN7,PIN_IS_HIGH);
@@ -260,11 +262,7 @@ void vApplicationTickHook(void)
  }
 
  
- void vApplicationIdleHook(void)
- {
-	 GPIO_write(PORT_0,PIN5,PIN_IS_HIGH);
-	 GPIO_write(PORT_0,PIN5,PIN_IS_LOW);
- }
+
  
 /*
  * Application entry point:
